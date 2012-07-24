@@ -17,7 +17,7 @@
 # limitations under the License.
 #
 # http://code.google.com/p/pylast/
-    
+
 __version__ = '0.5'
 __author__ = 'Amr Hassan'
 __copyright__ = "Copyright (C) 2008-2010  Amr Hassan"
@@ -158,6 +158,7 @@ class _Network(object):
         self.proxy_enabled = False
         self.proxy = None
         self.last_call_time = 0
+        self.limit_rate = False
         
         #generate a session_key if necessary
         if (self.api_key and self.api_secret) and not self.session_key and (self.username and self.password_hash):
@@ -283,18 +284,18 @@ class _Network(object):
 
     def _delay_call(self):
         """
-            Makes sure that web service calls are at least a second apart
+            Makes sure that web service calls are at least 0.2 seconds apart.
         """
-        
-        # delay time in seconds
-        DELAY_TIME = 1.0
+
+        # delay time in seconds from section 4.4 of http://www.last.fm/api/tos
+        DELAY_TIME = 0.2
         now = time.time()
-            
+
         if (now - self.last_call_time) < DELAY_TIME:
-            time.sleep(1)
-        
+            time.sleep(now - self.last_call_time - DELAY_TIME)
+
         self.last_call_time = now
-        
+
     def create_new_playlist(self, title, description):
         """
             Creates a playlist for the authenticated user and returns it
@@ -349,6 +350,18 @@ class _Network(object):
         """Returns proxy details."""
         
         return self.proxy
+
+    def enable_ratelimit(self):
+        """Enables rate limiting for this network"""
+        self.limit_rate = True
+
+    def disable_ratelimit(self):
+        """Disables rate limiting for this network"""
+        self.limit_rate = False
+
+    def is_rate_limited(self):
+        """Return True if web service calls are rate limited"""
+        return self.limit_rate
         
     def enable_caching(self, file_path = None):
         """Enables caching request-wide for all cachable calls.
@@ -777,7 +790,8 @@ class _Request(object):
         """Returns a response body string from the server."""
         
         # Delay the call if necessary
-        #self.network._delay_call()    # enable it if you want.
+        if self.network.limit_rate:
+            self.network._delay_call()
         
         data = []
         for name in self.params.keys():
